@@ -1470,6 +1470,19 @@ const ux_flow_step_t *        const ux_approval_tx_data_warning_flow [] = {
   FLOW_END_STEP,
 };
 
+const ux_flow_step_t *        const ux_approval_tx_data_warning_gateway_flow [] = {
+  &ux_approval_tx_1_step,
+  &ux_approval_tx_data_warning_step,
+  &ux_approval_tx_2_step,
+  &ux_approval_tx_3_step,
+  &ux_approval_tx_4_step,
+  &ux_celo_approval_tx_gateway_fee_step,
+  &ux_celo_approval_tx_gateway_address_step,
+  &ux_approval_tx_5_step,
+  &ux_approval_tx_6_step,
+  FLOW_END_STEP,
+};
+
 //////////////////////////////////////////////////////////////////////
 UX_FLOW_DEF_NOCB(
     ux_sign_flow_1_step,
@@ -2517,7 +2530,7 @@ void finalizeParsing(bool direct) {
 #elif defined(HAVE_UX_FLOW)
   if (tmpContent.txContent.gatewayDestinationLength != 0) {
     ux_flow_init(0,
-      ((dataPresent && !N_storage.contractDetails) ? ux_approval_tx_data_warning_flow : ux_approval_celo_gateway_tx_flow),
+      ((dataPresent && !N_storage.contractDetails) ? ux_approval_tx_data_warning_gateway_flow : ux_approval_celo_gateway_tx_flow),
       NULL);
   } else {
     ux_flow_init(0,
