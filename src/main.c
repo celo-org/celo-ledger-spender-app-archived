@@ -225,7 +225,6 @@ void reset_app_context() {
   appState = APP_STATE_IDLE;
   PRINTF("Resetting context\n");
   os_memset(tmpCtx.transactionContext.tokenSet, 0, MAX_TOKEN);
-  tmpCtx.transactionContext.currentTokenIndex = 0;
   os_memset((uint8_t*)&txContext, 0, sizeof(txContext));
   os_memset((uint8_t*)&tmpContent, 0, sizeof(tmpContent));
 }
@@ -2146,8 +2145,6 @@ tokenDefinition_t* getKnownToken(uint8_t *tokenAddr) {
 
     for(size_t i=0; i<MAX_TOKEN; i++){
       currentToken = &tmpCtx.transactionContext.tokens[i];
-      PRINTF("Token %d address byte 0: %d\n", i, currentToken->address[0]);
-      PRINTF("Token addr byte 0: %d\n", tokenAddr[0]);
       if (tmpCtx.transactionContext.tokenSet[i] && (os_memcmp(currentToken->address, tokenAddr, 20) == 0)) {
         PRINTF("Token found at index %d\n", i);
         return currentToken;
