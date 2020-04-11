@@ -83,6 +83,9 @@ void finalizeParsing(bool);
 
 static const uint8_t const TOKEN_TRANSFER_ID[] = { 0xa9, 0x05, 0x9c, 0xbb };
 
+static const char const UNKNOWN_FEE_CURRENCY_NAME[] = "??? ";
+static const uint8_t UNKNOWN_FEE_CURRENCY_DECIMALS = 18;
+
 static const uint8_t const TOKEN_SIGNATURE_PUBLIC_KEY[] = {
 // cLabs key
   0x04,
@@ -160,6 +163,7 @@ typedef enum {
 
 
 volatile uint8_t dataAllowed;
+volatile uint8_t unknownFeeCurrencyAllowed;
 volatile uint8_t contractDetails;
 volatile uint8_t appState;
 volatile char addressSummary[32];
@@ -183,6 +187,7 @@ unsigned int ux_step_count;
 
 typedef struct internalStorage_t {
   unsigned char dataAllowed;
+  unsigned char unknownFeeCurrencyAllowed;
   unsigned char contractDetails;
   uint8_t initialized;
 } internalStorage_t;
@@ -311,6 +316,14 @@ void menu_settings_data_change(unsigned int enabled) {
   UX_MENU_DISPLAY(0, menu_settings, NULL);
 }
 
+// change the setting
+void menu_settings_unknown_fee_currency_change(unsigned int enabled) {
+  unknownFeeCurrencyAllowed = enabled;
+  nvm_write(&N_storage.unknownFeeCurrencyAllowed, (void*)&unknownFeeCurrencyAllowed, sizeof(uint8_t));
+  // go back to the menu entry
+  UX_MENU_DISPLAY(0, menu_settings, NULL);
+}
+
 void menu_settings_details_change(unsigned int enabled) {
   contractDetails = enabled;
   nvm_write(&N_storage.contractDetails, (void*)&contractDetails, sizeof(uint8_t));
@@ -322,6 +335,12 @@ void menu_settings_details_change(unsigned int enabled) {
 void menu_settings_data_init(unsigned int ignored) {
   UNUSED(ignored);
   UX_MENU_DISPLAY(N_storage.dataAllowed?1:0, menu_settings_data, NULL);
+}
+
+// show the currently activated entry
+void menu_settings_unknown_fee_currency_init(unsigned int ignored) {
+  UNUSED(ignored);
+  UX_MENU_DISPLAY(N_storage.unknownFeeCurrencyAllowed?1:0, menu_settings_unknown_fee_currency, NULL);
 }
 
 void menu_settings_details_init(unsigned int ignored) {
@@ -378,6 +397,18 @@ const bagl_element_t * ui_settings_blue_toggle_data(const bagl_element_t * e) {
   return 0;
 }
 
+const bagl_element_t * ui_settings_blue_toggle_unknown_fee_currency(const bagl_element_t * e) {
+  // swap setting and request redraw of settings elements
+  uint8_t setting = N_storage.unknownFeeCurrencyAllowed?0:1;
+  nvm_write(&N_storage.unknownFeeCurrencyAllowed, (void*)&setting, sizeof(uint8_t));
+
+  // only refresh settings mutable drawn elements
+  UX_REDISPLAY_IDX(7);
+
+  // won't redisplay the bagl_none
+  return 0;
+}
+
 const bagl_element_t * ui_settings_blue_toggle_details(const bagl_element_t * e) {
   // swap setting and request redraw of settings elements
   uint8_t setting = N_storage.contractDetails?0:1;
@@ -420,6 +451,10 @@ const bagl_element_t ui_settings_blue[] = {
   {{BAGL_LABELINE                       , 0x00,  30, 126, 260,  30, 0, 0, BAGL_FILL, 0x999999, COLOR_BG_1, BAGL_FONT_OPEN_SANS_REGULAR_8_11PX, 0   }, "Allow contract data in transactions", 0, 0, 0, NULL, NULL, NULL},
   {{BAGL_NONE   | BAGL_FLAG_TOUCHABLE   , 0x00,   0,  78, 320,  68, 0, 0, BAGL_FILL, 0xFFFFFF, 0x000000, 0                                                                                        , 0   }, NULL, 0, 0xEEEEEE, 0x000000, ui_settings_blue_toggle_data, ui_settings_out_over, ui_settings_out_over },
 
+  {{BAGL_LABELINE                       , 0x00,  30, 105, 160,  30, 0, 0, BAGL_FILL, 0x000000, COLOR_BG_1, BAGL_FONT_OPEN_SANS_REGULAR_10_13PX, 0   }, "Unknown fee token", 0, 0, 0, NULL, NULL, NULL},
+  {{BAGL_LABELINE                       , 0x00,  30, 126, 260,  30, 0, 0, BAGL_FILL, 0x999999, COLOR_BG_1, BAGL_FONT_OPEN_SANS_REGULAR_8_11PX, 0   }, "Allow unknown fee token", 0, 0, 0, NULL, NULL, NULL},
+  {{BAGL_NONE   | BAGL_FLAG_TOUCHABLE   , 0x00,   0,  78, 320,  68, 0, 0, BAGL_FILL, 0xFFFFFF, 0x000000, 0                                                                                        , 0   }, NULL, 0, 0xEEEEEE, 0x000000, ui_settings_blue_toggle_unknown_fee_currency, ui_settings_out_over, ui_settings_out_over },
+
   {{BAGL_RECTANGLE, 0x00, 30, 146, 260, 1, 1, 0, 0, 0xEEEEEE, COLOR_BG_1, 0, 0}, NULL, 0, 0, 0, NULL, NULL, NULL},
   {{BAGL_LABELINE, 0x00, 30, 174, 160, 30, 0, 0, BAGL_FILL, 0x000000, COLOR_BG_1, BAGL_FONT_OPEN_SANS_REGULAR_10_13PX, 0}, "Display data", 0, 0, 0, NULL, NULL, NULL},
   {{BAGL_LABELINE, 0x00, 30, 195, 260, 30, 0, 0, BAGL_FILL, 0x999999, COLOR_BG_1, BAGL_FONT_OPEN_SANS_REGULAR_8_11PX, 0}, "Display contract data details", 0, 0, 0, NULL, NULL, NULL},
@@ -457,6 +492,16 @@ const bagl_element_t * ui_settings_blue_prepro(const bagl_element_t * e) {
           tmp_element.text = &C_icon_toggle_reset;
         }
         break;
+      case 0x03:
+        // swap icon content
+        if (N_storage.unknownFeeCurrencyAllowed) {
+          tmp_element.text = &C_icon_toggle_set;
+        }
+        else {
+          tmp_element.text = &C_icon_toggle_reset;
+        }
+        break;
+
     }
   }
   return &tmp_element;
@@ -1108,6 +1153,7 @@ unsigned int ui_data_parameter_nanos_button(unsigned int button_mask,
 void display_settings(void);
 void switch_settings_contract_data(void);
 void switch_settings_display_data(void);
+void switch_settings_unknown_fee_currency_allowed(void);
 
 //////////////////////////////////////////////////////////////////////
 UX_FLOW_DEF_NOCB(
@@ -1169,6 +1215,15 @@ UX_FLOW_DEF_VALID(
       .text = strings.common.fullAddress + 20
     });
 
+UX_FLOW_DEF_VALID(
+    ux_settings_flow_3_step,
+    bnnn_paging,
+    switch_settings_unknown_fee_currency_allowed(),
+    {
+      .title = "Unknown fee token",
+      .text = strings.common.fullGatewayAddress
+    });
+
 #else
 
 UX_FLOW_DEF_VALID(
@@ -1193,10 +1248,23 @@ UX_FLOW_DEF_VALID(
       strings.common.fullAddress + 20
     });
 
+UX_FLOW_DEF_VALID(
+    ux_settings_flow_3_step,
+    bnnn,
+    switch_settings_unknown_fee_currency_allowed(),
+    {
+      "Unknown fee token",
+      "Allowed unknown fee",
+      "currency",
+      strings.common.fullGatewayAddress
+    });
+
+
+
 #endif
 
 UX_FLOW_DEF_VALID(
-    ux_settings_flow_3_step,
+    ux_settings_flow_4_step,
     pb,
     ui_idle(),
     {
@@ -1208,18 +1276,26 @@ const ux_flow_step_t *        const ux_settings_flow [] = {
   &ux_settings_flow_1_step,
   &ux_settings_flow_2_step,
   &ux_settings_flow_3_step,
+  &ux_settings_flow_4_step,
   FLOW_END_STEP,
 };
 
 void display_settings() {
   strcpy(strings.common.fullAddress, (N_storage.dataAllowed ? "Allowed" : "NOT Allowed"));
   strcpy(strings.common.fullAddress + 20, (N_storage.contractDetails ? "Displayed" : "NOT Displayed"));
+  strcpy(strings.common.fullGatewayAddress, (N_storage.unknownFeeCurrencyAllowed ? "Allowed" : "NOT Allowed"));
   ux_flow_init(0, ux_settings_flow, NULL);
 }
 
 void switch_settings_contract_data() {
   uint8_t value = (N_storage.dataAllowed ? 0 : 1);
   nvm_write(&N_storage.dataAllowed, (void*)&value, sizeof(uint8_t));
+  display_settings();
+}
+
+void switch_settings_unknown_fee_currency_allowed() {
+  uint8_t value = (N_storage.unknownFeeCurrencyAllowed ? 0 : 1);
+  nvm_write(&N_storage.unknownFeeCurrencyAllowed, (void*)&value, sizeof(uint8_t));
   display_settings();
 }
 
@@ -2394,15 +2470,20 @@ void finalizeParsing(bool direct) {
   if (tmpContent.txContent.feeCurrencyLength != 0) {
     tokenDefinition_t *feeCurrencyToken = getKnownToken(tmpContent.txContent.feeCurrency);
     if (feeCurrencyToken == NULL) {
-      reset_app_context();
-      PRINTF("Invalid fee currency");
-      if (direct) {
-          THROW(0x6A80);
-      }
-      else {
-          io_seproxyhal_send_status(0x6A80);
-          ui_idle();
-          return;
+      if (!N_storage.unknownFeeCurrencyAllowed) {
+        reset_app_context();
+        PRINTF("Invalid fee token");
+        if (direct) {
+            THROW(0x6A80);
+        }
+        else {
+            io_seproxyhal_send_status(0x6A80);
+            ui_idle();
+            return;
+        }
+      } else {
+        feeTicker = UNKNOWN_FEE_CURRENCY_NAME;
+        feeDecimals = UNKNOWN_FEE_CURRENCY_DECIMALS;
       }
     } else {
       feeTicker = feeCurrencyToken->ticker;
@@ -3120,6 +3201,7 @@ __attribute__((section(".boot"))) int main(int arg0) {
                 if (N_storage.initialized != 0x01) {
                   internalStorage_t storage;
                   storage.dataAllowed = 0x01;
+                  storage.unknownFeeCurrencyAllowed = 0x00;
                   storage.contractDetails = 0x00;
                   storage.initialized = 0x01;
                   nvm_write(&N_storage, (void*)&storage, sizeof(internalStorage_t));
