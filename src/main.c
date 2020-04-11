@@ -2594,6 +2594,7 @@ void handleProvideErc20TokenInformation(uint8_t p1, uint8_t p2, uint8_t *workBuf
   }
   tickerLength = workBuffer[offset++];
   dataLength--;
+  // We need to make sure we can write the ticker, a space and a zero byte at the end
   if ((tickerLength + 2) >= sizeof(token->ticker)) {
     THROW(0x6A80);
   }
