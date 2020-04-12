@@ -85,18 +85,18 @@ static const uint8_t const TOKEN_TRANSFER_ID[] = { 0xa9, 0x05, 0x9c, 0xbb };
 
 static const uint8_t const TOKEN_SIGNATURE_PUBLIC_KEY[] = {
 // cLabs key
-  0x04,
+0x04,
 
-  0xfe,0x2d,0x7f,0x9,0xba,0xf,0x2f,0x7a,
-  0xbc,0xcf,0xf6,0xcf,0x5f,0xb0,0x73,0x63,
-  0x19,0x41,0xce,0xc8,0x7e,0x2,0xe6,0x8e,
-  0x96,0x6,0xfc,0x72,0xdc,0x59,0x53,0x33,
+0xae,0xb6,0xaa,0xd2,0x28,0x9e,0x3f,0x3f,
+0xc7,0x16,0xc2,0x4a,0xbe,0xe6,0xdd,0xfc,
+0xa2,0x76,0x4d,0xe7,0xc2,0xe7,0x78,0x81,
+0xe7,0xa,0x6c,0x58,0x2d,0x16,0xec,0x34,
 
 
-  0x4c,0xbb,0x9c,0xd3,0x9f,0xb9,0xdf,0x0,
-  0xea,0x50,0x70,0xea,0x7d,0xab,0x65,0x9b,
-  0x81,0x75,0x4f,0x2f,0xdb,0xd7,0x65,0x9a,
-  0x11,0x63,0x84,0x70,0xf5,0x4f,0xd4,0xbf
+0xc2,0x17,0xf0,0x83,0xf7,0x18,0x62,0x79,
+0x52,0xa8,0xe,0xfb,0xc8,0xf,0x0,0xf,
+0x61,0xb6,0xe8,0xdd,0x2a,0x9b,0xe5,0x56,
+0x9c,0xbb,0x45,0xdf,0xfe,0xc0,0x95,0xd9
 };
 
 typedef struct tokenContext_t {
@@ -2788,15 +2788,15 @@ void handleSignPersonalMessage(uint8_t p1, uint8_t p2, uint8_t *workBuffer, uint
   cx_hash((cx_hash_t *)&tmpContent.sha2, 0, workBuffer, dataLength, NULL, 0);
   tmpCtx.messageSigningContext.remainingLength -= dataLength;
   if (tmpCtx.messageSigningContext.remainingLength == 0) {
-    cx_hash((cx_hash_t *)&sha3, CX_LAST, workBuffer, 0, tmpCtx.messageSigningContext.hash, 32);
-    cx_hash((cx_hash_t *)&tmpContent.sha2, CX_LAST, workBuffer, 0, hashMessage, 32);
+    //cx_hash((cx_hash_t *)&sha3, CX_LAST, workBuffer, 0, tmpCtx.messageSigningContext.hash, 32);
+    cx_hash((cx_hash_t *)&tmpContent.sha2, CX_LAST, workBuffer, 0, tmpCtx.messageSigningContext.hash, 32);
 
 #define HASH_LENGTH 4
-    array_hexstr(strings.common.fullAddress, hashMessage, HASH_LENGTH / 2);
+    array_hexstr(strings.common.fullAddress, tmpCtx.messageSigningContext.hash, HASH_LENGTH / 2);
     strings.common.fullAddress[HASH_LENGTH / 2 * 2] = '.';
     strings.common.fullAddress[HASH_LENGTH / 2 * 2 + 1] = '.';
     strings.common.fullAddress[HASH_LENGTH / 2 * 2 + 2] = '.';
-    array_hexstr(strings.common.fullAddress + HASH_LENGTH / 2 * 2 + 3, hashMessage + 32 - HASH_LENGTH / 2, HASH_LENGTH / 2);
+    array_hexstr(strings.common.fullAddress + HASH_LENGTH / 2 * 2 + 3, tmpCtx.messageSigningContext.hash + 32 - HASH_LENGTH / 2, HASH_LENGTH / 2);
 
 #ifdef NO_CONSENT
     io_seproxyhal_touch_signMessage_ok(NULL);
@@ -3120,7 +3120,7 @@ __attribute__((section(".boot"))) int main(int arg0) {
 
                 if (N_storage.initialized != 0x01) {
                   internalStorage_t storage;
-                  storage.dataAllowed = 0x01;
+                  storage.dataAllowed = 0x00;
                   storage.contractDetails = 0x00;
                   storage.initialized = 0x01;
                   nvm_write(&N_storage, (void*)&storage, sizeof(internalStorage_t));
