@@ -51,6 +51,8 @@ void finalizeParsing(bool);
 
 #define MAX_BIP32_PATH 10
 
+#define MAX_TOKEN 2
+
 #define APP_FLAG_DATA_ALLOWED 0x01
 #define APP_FLAG_EXTERNAL_TOKEN_NEEDED 0x02
 
@@ -85,18 +87,18 @@ void finalizeParsing(bool);
 static const uint8_t const TOKEN_TRANSFER_ID[] = { 0xa9, 0x05, 0x9c, 0xbb };
 
 static const uint8_t const TOKEN_SIGNATURE_PUBLIC_KEY[] = {
-// production key 2019-01-11 03:07PM (erc20signer)
+// cLabs production key (2020-04-14)
   0x04,
 
-  0x5e,0x6c,0x10,0x20,0xc1,0x4d,0xc4,0x64,
-  0x42,0xfe,0x89,0xf9,0x7c,0x0b,0x68,0xcd,
-  0xb1,0x59,0x76,0xdc,0x24,0xf2,0x4c,0x31,
-  0x6e,0x7b,0x30,0xfe,0x4e,0x8c,0xc7,0x6b,
+  0xb0,0x6c,0xf5,0xd8,0xf7,0xed,0x71,0xd8,
+  0xbd,0x9b,0x9d,0xc3,0x79,0x44,0xa1,0xc6,
+  0xd2,0x40,0xf6,0x9b,0xb0,0xbe,0x36,0x21,
+  0xdd,0xdb,0xb6,0xac,0xe,0xcc,0xd1,0x50,
 
-  0x14,0x89,0x15,0x0c,0x21,0x51,0x4e,0xbf,
-  0x44,0x0f,0xf5,0xde,0xa5,0x39,0x3d,0x83,
-  0xde,0x53,0x58,0xcd,0x09,0x8f,0xce,0x8f,
-  0xd0,0xf8,0x1d,0xaa,0x94,0x97,0x91,0x83
+  0x8b,0xcc,0x2e,0xa4,0x62,0x27,0xe4,0x3b,
+  0x94,0x1e,0x2c,0x6f,0x1b,0x1c,0xd0,0xae,
+  0x68,0xe5,0x4b,0x18,0x5e,0x2c,0xab,0xef,
+  0x34,0x55,0x58,0x6,0x4,0xbd,0x45,0xb8
 };
 
 typedef struct tokenContext_t {
@@ -121,7 +123,9 @@ typedef struct transactionContext_t {
     uint8_t pathLength;
     uint32_t bip32Path[MAX_BIP32_PATH];
     uint8_t hash[32];
-    tokenDefinition_t currentToken;
+    tokenDefinition_t tokens[MAX_TOKEN];
+    uint8_t tokenSet[MAX_TOKEN];
+    uint8_t currentTokenIndex;
 } transactionContext_t;
 
 typedef struct messageSigningContext_t {
@@ -163,7 +167,6 @@ volatile uint8_t appState;
 volatile char addressSummary[32];
 volatile bool dataPresent;
 volatile bool tokenProvisioned;
-volatile bool currentTokenSet;
 
 bagl_element_t tmp_element;
 
@@ -222,7 +225,8 @@ const bagl_element_t* ui_menu_item_out_over(const bagl_element_t* e) {
 
 void reset_app_context() {
   appState = APP_STATE_IDLE;
-  currentTokenSet = false;
+  PRINTF("Resetting context\n");
+  os_memset(tmpCtx.transactionContext.tokenSet, 0, MAX_TOKEN);
   os_memset((uint8_t*)&txContext, 0, sizeof(txContext));
   os_memset((uint8_t*)&tmpContent, 0, sizeof(tmpContent));
 }
@@ -1939,7 +1943,7 @@ uint32_t splitBinaryParameterPart(char *result, uint8_t *parameter) {
     }
 }
 
-tokenDefinition_t* getKnownToken(char *tokenAddr) {
+tokenDefinition_t* getKnownToken(uint8_t *tokenAddr) {
     tokenDefinition_t *currentToken = NULL;
 #ifdef HAVE_TOKENS_LIST
     uint32_t numTokens = 0;
@@ -2141,9 +2145,12 @@ tokenDefinition_t* getKnownToken(char *tokenAddr) {
     }
 #endif
 
-    if ((currentTokenSet || tokenProvisioned) && (os_memcmp(tmpCtx.transactionContext.currentToken.address, tokenAddr, 20) == 0)) {
-      currentTokenSet = false;
-      return &tmpCtx.transactionContext.currentToken;
+    for(size_t i=0; i<MAX_TOKEN; i++){
+      currentToken = &tmpCtx.transactionContext.tokens[i];
+      if (tmpCtx.transactionContext.tokenSet[i] && (os_memcmp(currentToken->address, tokenAddr, 20) == 0)) {
+        PRINTF("Token found at index %d\n", i);
+        return currentToken;
+      }
     }
 
     return NULL;
@@ -2577,27 +2584,35 @@ void handleProvideErc20TokenInformation(uint8_t p1, uint8_t p2, uint8_t *workBuf
   uint32_t chainId;
   uint8_t hash[32];
   cx_ecfp_public_key_t tokenKey;
+
+
+  tmpCtx.transactionContext.currentTokenIndex = (tmpCtx.transactionContext.currentTokenIndex + 1) % MAX_TOKEN;
+  tokenDefinition_t* token = &tmpCtx.transactionContext.tokens[tmpCtx.transactionContext.currentTokenIndex];
+
+  PRINTF("Provisioning currentTokenIndex %d\n", tmpCtx.transactionContext.currentTokenIndex);
+
   if (dataLength < 1) {
     THROW(0x6A80);
   }
   tickerLength = workBuffer[offset++];
   dataLength--;
-  if ((tickerLength + 1) >= sizeof(tmpCtx.transactionContext.currentToken.ticker)) {
+  // We need to make sure we can write the ticker, a space and a zero byte at the end
+  if ((tickerLength + 2) >= sizeof(token->ticker)) {
     THROW(0x6A80);
   }
   if (dataLength < tickerLength + 20 + 4 + 4) {
     THROW(0x6A80);
   }
   cx_hash_sha256(workBuffer + offset, tickerLength + 20 + 4 + 4, hash, 32);
-  os_memmove(tmpCtx.transactionContext.currentToken.ticker, workBuffer + offset, tickerLength);
-  tmpCtx.transactionContext.currentToken.ticker[tickerLength] = ' ';
-  tmpCtx.transactionContext.currentToken.ticker[tickerLength + 1] = '\0';
+  os_memmove(token->ticker, workBuffer + offset, tickerLength);
+  token->ticker[tickerLength] = ' ';
+  token->ticker[tickerLength + 1] = '\0';
   offset += tickerLength;
   dataLength -= tickerLength;
-  os_memmove(tmpCtx.transactionContext.currentToken.address, workBuffer + offset, 20);
+  os_memmove(token->address, workBuffer + offset, 20);
   offset += 20;
   dataLength -= 20;
-  tmpCtx.transactionContext.currentToken.decimals = U4BE(workBuffer, offset);
+  token->decimals = U4BE(workBuffer, offset);
   offset += 4;
   dataLength -= 4;
   chainId = U4BE(workBuffer, offset);
@@ -2612,7 +2627,7 @@ void handleProvideErc20TokenInformation(uint8_t p1, uint8_t p2, uint8_t *workBuf
     PRINTF("Invalid token signature\n");
     THROW(0x6A80);
   }
-  currentTokenSet = true;
+  tmpCtx.transactionContext.tokenSet[tmpCtx.transactionContext.currentTokenIndex] = 1;
   THROW(0x9000);
 }
 
@@ -2840,12 +2855,11 @@ void handleApdu(volatile unsigned int *flags, volatile unsigned int *tx) {
 
       switch (G_io_apdu_buffer[OFFSET_INS]) {
         case INS_GET_PUBLIC_KEY:
-          currentTokenSet = false;
+          os_memset(tmpCtx.transactionContext.tokenSet, 0, MAX_TOKEN);
           handleGetPublicKey(G_io_apdu_buffer[OFFSET_P1], G_io_apdu_buffer[OFFSET_P2], G_io_apdu_buffer + OFFSET_CDATA, G_io_apdu_buffer[OFFSET_LC], flags, tx);
           break;
 
         case INS_PROVIDE_ERC20_TOKEN_INFORMATION:
-          currentTokenSet = false;
           handleProvideErc20TokenInformation(G_io_apdu_buffer[OFFSET_P1], G_io_apdu_buffer[OFFSET_P2], G_io_apdu_buffer + OFFSET_CDATA, G_io_apdu_buffer[OFFSET_LC], flags, tx);
           break;
 
@@ -2858,7 +2872,7 @@ void handleApdu(volatile unsigned int *flags, volatile unsigned int *tx) {
           break;
 
         case INS_SIGN_PERSONAL_MESSAGE:
-          currentTokenSet = false;
+          os_memset(tmpCtx.transactionContext.tokenSet, 0, MAX_TOKEN);
           handleSignPersonalMessage(G_io_apdu_buffer[OFFSET_P1], G_io_apdu_buffer[OFFSET_P2], G_io_apdu_buffer + OFFSET_CDATA, G_io_apdu_buffer[OFFSET_LC], flags, tx);
           break;
 
@@ -3105,6 +3119,7 @@ __attribute__((section(".boot"))) int main(int arg0) {
     }
 
     reset_app_context();
+    tmpCtx.transactionContext.currentTokenIndex = 0;
 
     // ensure exception will work as planned
     os_boot();
@@ -3123,7 +3138,7 @@ __attribute__((section(".boot"))) int main(int arg0) {
 
                 if (N_storage.initialized != 0x01) {
                   internalStorage_t storage;
-                  storage.dataAllowed = 0x00;
+                  storage.dataAllowed = 0x01;
                   storage.contractDetails = 0x00;
                   storage.initialized = 0x01;
                   nvm_write(&N_storage, (void*)&storage, sizeof(internalStorage_t));
